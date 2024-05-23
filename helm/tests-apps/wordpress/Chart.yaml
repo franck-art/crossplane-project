@@ -1,0 +1,9 @@
+---
+apiVersion: v2
+name: wordpress
+version: 22.2.2
+appVersion: 6.5.2
+dependencies:
+  - name: wordpress
+    version: 22.2.2
+    repository: https://charts.bitnami.com/bitnami

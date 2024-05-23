@@ -1,0 +1,48 @@
+apiVersion: dev.franck.com/v1alpha1
+kind: VirtualEnvironment
+metadata:
+  name: dev3-env
+  labels:
+      name: crossplane-poc-dev3
+spec:
+  argocd:
+    name: argo-cd
+    version: 6.7.11
+    repository: https://argoproj.github.io/argo-helm
+    skipCreateNamespace: false
+    values:
+      server:
+        services:
+          type: LoadBalancer
+      configs:
+        cm:
+          users.anonymous.enabled: false
+          admin.enabled: true
+        secret:
+          argocdServerAdminPassword: $2a$10$UJbAlpup2UISMUpBPmK2iu0P1560uiHcnoI31/y9t4LnVSqPX5EOC # admin1234
+        repositories:
+          crossplane-poc:
+            url: https://github.com/franck-art/crossplane-project.git
+            name: crossplane-project
+            type: git
+
+      extraObjects:
+        - apiVersion: argoproj.io/v1alpha1
+          kind: Application
+          metadata:
+            name: vcluster-wordpress-dev3
+          spec:
+            project: default
+            source:
+              repoURL: 'https://github.com/franck-art/crossplane-project.git'
+              targetRevision: HEAD
+              path: helm/tests-apps/wordpress
+            destination:
+              server: 'https://kubernetes.default.svc'
+              namespace: wordpress
+            syncPolicy:
+              automated:
+                prune: true
+                selfHeal: true
+              syncOptions:
+                - CreateNamespace=true

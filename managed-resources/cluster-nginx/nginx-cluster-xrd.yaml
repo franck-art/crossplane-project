@@ -1,0 +1,52 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: nginxclusters.example.crossplane.io
+spec:
+  connectionSecretKeys:
+    - kubeconfig
+  group: example.crossplane.io
+  names:
+    kind: nginxCluster
+    listKind: nginxClusterList
+    plural: nginxclusters
+    singular: nginxcluster
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          description: A nginxCluster is a composite resource that represents a K8S Cluster with nginx Installed
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                cluster:
+                  type: object
+                  properties:
+                    clusterVersion:
+                      type: string
+                      description: The version of the cluster
+                  required:
+                    - clusterVersion
+                applicationChart:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      description: The name of the chart
+                    version:
+                      type: string
+                      description: The version of the chart
+                    repository:
+                      type: string
+                      description: The repository of the chart
+                    skipCreateNamespace:
+                      type: boolean
+                      description: Whether to skip creating the namespace
+                  required:
+                    - name
+                    - version
+                    - repository

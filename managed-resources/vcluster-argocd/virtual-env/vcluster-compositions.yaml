@@ -1,0 +1,146 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: vcluster.dev.franck.com
+spec:
+  writeConnectionSecretsToNamespace: crossplane-system
+  compositeTypeRef:
+    apiVersion: dev.franck.com/v1alpha1
+    kind: VirtualEnvironment
+  resources:
+    - base:
+        apiVersion: helm.crossplane.io/v1beta1
+        kind: ProviderConfig
+        metadata:
+          name: incluster-helm-provider
+        namespace: crossplane-system
+        spec:
+          credentials:
+            source: InjectedIdentity
+      patches:
+        - fromFieldPath: metadata.name
+          toFieldPath: metadata.name
+
+
+    - base:
+        apiVersion: helm.crossplane.io/v1beta1
+        kind: Release
+        metadata:
+          name: vcluster-example # the name is retrieve from patches
+          annotations:
+            crossplane.io/external-name: vcluster
+        spec:
+          providerConfigRef:
+            name: default # the name is retrieved from patches
+          managementPolicy: Full
+          forProvider:
+            chart:
+              name: vcluster
+              repository: https://charts.loft.sh
+              version: 0.19.5
+            wait: true
+            skipCreateNamespace: false # optional
+            values:
+              syncer:
+                extraArgs:
+                - --out-kube-config-secret=vcluster-kubeconfig
+                - --out-kube-config-server=https://vcluster.vcluster.svc.cluster.local
+                - --tls-san=vcluster.vcluster.svc.cluster.local
+              sync:
+                ingresses:
+                  enabled: true
+                poddisruptionbudgets:
+                  enabled: true
+            namespace: vcluster # the namespace is retrieved from patches
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: metadata.name
+          toFieldPath: spec.forProvider.namespace
+        - type: FromCompositeFieldPath
+          fromFieldPath: metadata.name
+          toFieldPath: metadata.name
+          transforms:
+          - type: string
+            string:
+              fmt: "%s-vcluster" # dev1-env-vcluster
+        - type: CombineFromComposite
+          combine:
+            variables:
+            - fromFieldPath: metadata.name
+            - fromFieldPath: metadata.name
+            strategy: string
+            string:
+              fmt: "--out-kube-config-server=https://%s.%s.svc.cluster.local" # ex: dev1-env.dev1-env.svc.cluster.local
+          toFieldPath: spec.forProvider.values.syncer.extraArgs[1]
+        - type: CombineFromComposite
+          combine:
+            variables:
+            - fromFieldPath: metadata.name
+            - fromFieldPath: metadata.name
+            strategy: string
+            string:
+              fmt: "--tls-san=%s.%s.svc.cluster.local" # ex: dev1.dev1.svc.cluster.local
+          toFieldPath: spec.forProvider.values.syncer.extraArgs[2]
+        - fromFieldPath: metadata.name
+          toFieldPath: spec.providerConfigRef.name
+        - fromFieldPath: "metadata.name"
+          toFieldPath: "metadata.annotations[crossplane.io/external-name]"
+
+    - base:
+        apiVersion: helm.crossplane.io/v1beta1
+        kind: ProviderConfig
+        metadata:
+          name: vcluster-kubeconfig
+        spec:
+          credentials:
+            secretRef:
+              key: config
+              name: vcluster-kubeconfig
+              namespace: vcluster # the namespace is retrieved from patches
+            source: Secret
+      patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: metadata.name
+          toFieldPath: metadata.name
+        - type: FromCompositeFieldPath
+          fromFieldPath: metadata.name
+          toFieldPath: spec.credentials.secretRef.namespace
+
+    - base:
+        apiVersion: helm.crossplane.io/v1beta1
+        kind: Release
+        metadata:
+          name: vcluster-test-argocd
+        spec:
+          providerConfigRef:
+            name: test # the name is retrieved from patches
+          forProvider:
+            chart:
+              name: argo-cd
+              version: 6.7.11
+              repository: https://argoproj.github.io/argo-helm
+            namespace: argocd
+            wait: true
+            skipCreateNamespace: false
+      patches:
+        - fromFieldPath: spec.argocd.version
+          toFieldPath: spec.forProvider.chart.version
+        - fromFieldPath: spec.argocd.name
+          toFieldPath: spec.forProvider.chart.name
+        - fromFieldPath: spec.argocd.repository
+          toFieldPath: spec.forProvider.chart.repository
+        - fromFieldPath: spec.argocd.skipCreateNamespace
+          toFieldPath: spec.forProvider.skipCreateNamespace
+        - fromFieldPath: spec.argocd.values
+          toFieldPath: spec.forProvider.values
+        - fromFieldPath: metadata.name
+          toFieldPath: spec.providerConfigRef.name
+        - fromFieldPath: "metadata.name"
+          toFieldPath: "metadata.annotations[crossplane.io/external-name]"
+        - type: FromCompositeFieldPath
+          fromFieldPath: metadata.name
+          toFieldPath: metadata.name
+          transforms:
+          - type: string
+            string:
+              fmt: "%s-argocd"

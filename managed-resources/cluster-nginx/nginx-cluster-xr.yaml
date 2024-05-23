@@ -1,0 +1,14 @@
+apiVersion: example.crossplane.io/v1alpha1
+kind: nginxCluster
+metadata:
+  name: mycluster
+  labels:
+      name: crossplane-poc
+spec:
+  cluster:
+    clusterVersion: "1.27"
+  applicationChart:
+    name: nginx
+    version: 16.0.3 # nginx appVersion 1.25.4
+    repository: https://charts.bitnami.com/bitnami
+    skipCreateNamespace: false # optional

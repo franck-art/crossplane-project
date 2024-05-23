@@ -1,0 +1,240 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: nginxclusters.example.crossplane.io
+spec:
+  writeConnectionSecretsToNamespace: crossplane-system
+  compositeTypeRef:
+    apiVersion: example.crossplane.io/v1alpha1
+    kind: nginxCluster
+  resources:
+    - base:
+        apiVersion: compute.gcp.crossplane.io/v1beta1
+        kind: Network
+        metadata:
+          name: gke-network # the name is retrieve from patches
+        spec:
+          forProvider:
+            autoCreateSubnetworks: false
+            routingConfig:
+              routingMode: REGIONAL
+          providerConfigRef:
+            name: example
+      patches:
+        - fromFieldPath: "metadata.labels"
+          toFieldPath: "metadata.labels"
+        - fromFieldPath: "metadata.name"
+          toFieldPath: "metadata.name"
+
+    - base:
+        apiVersion: container.gcp.crossplane.io/v1beta2
+        kind: Cluster
+        metadata:
+          name: nginx-cluster
+        spec:
+          providerConfigRef:
+            name: example
+          forProvider:
+            addonsConfig:
+              gcePersistentDiskCsiDriverConfig:
+                enabled: true
+            databaseEncryption:
+              state: DECRYPTED
+            defaultMaxPodsConstraint:
+              maxPodsPerNode: 110
+            ipAllocationPolicy:
+              createSubnetwork: true
+              useIpAliases: true
+            networkPolicy:
+              enabled: true
+            legacyAbac:
+              enabled: false
+            verticalPodAutoscaling:
+              enabled: true
+            masterAuth:
+              clientCertificateConfig:
+                issueClientCertificate: false
+            autoscaling:
+              autoprovisioningNodePoolDefaults:
+                serviceAccount: default
+            initialClusterVersion: "1.20"
+            networkSelector:
+              matchLabels:
+                network: gke # the name is retrieve from patches
+            location: europe-west1-b
+            loggingService: logging.googleapis.com/kubernetes
+            monitoringService: monitoring.googleapis.com/kubernetes
+          writeConnectionSecretToRef:
+            name: gke-connection
+            namespace: crossplane-system
+      patches:
+        - fromFieldPath: "metadata.name"
+          toFieldPath: "metadata.annotations[crossplane.io/external-name]"
+        - fromFieldPath: "metadata.labels"
+          toFieldPath: "metadata.labels"
+        - fromFieldPath: "metadata.labels"
+          toFieldPath: "spec.forProvider.networkSelector.matchLabels"
+        - fromFieldPath: "metadata.annotations[crossplane.io/external-name]"
+          toFieldPath: "metadata.annotations[crossplane.io/external-name]"
+        - fromFieldPath: "spec.cluster.clusterVersion"
+          toFieldPath: "spec.forProvider.initialClusterVersion"
+      connectionDetails:
+        - fromConnectionSecretKey: kubeconfig
+
+    - base:
+        apiVersion: container.gcp.crossplane.io/v1beta1
+        kind: NodePool
+        metadata:
+          name: crossplane-np
+        spec:
+          providerConfigRef:
+            name: example
+          forProvider:
+            preemptible: false
+            management:
+              autoRepair: true
+              autoUpgrade: true
+            maxPodsConstraint:
+              maxPodsPerNode: 110
+            autoscaling:
+              enabled: true
+              maxNodeCount: 3
+              minNodeCount: 1
+            shieldedInstanceConfig:
+              enableIntegrityMonitoring: true
+              enableSecureBoot: true
+            clusterSelector:
+              matchLabels:
+                cluster: nginx-cluster # the name is retrieve from patches
+            config:
+              diskSizeGb: 50
+              diskType: pd-ssd
+              imageType: cos_containerd
+              labels:
+                test-label: crossplane-created
+              machineType: n2-standard-2
+              metadata:
+                disable-legacy-endpoints: "true"
+              oauthScopes:
+                - https://www.googleapis.com/auth/devstorage.read_only
+                - https://www.googleapis.com/auth/logging.write
+                - https://www.googleapis.com/auth/monitoring
+                - https://www.googleapis.com/auth/servicecontrol
+                - https://www.googleapis.com/auth/service.management.readonly
+                - https://www.googleapis.com/auth/trace.append
+                - https://www.googleapis.com/auth/cloud-platform
+              serviceAccount: default
+            initialNodeCount: 1
+            locations:
+              - europe-west1-b
+      patches:
+        - fromFieldPath: "spec.cluster.clusterVersion"
+          toFieldPath: "spec.forProvider.version"
+        - fromFieldPath: "metadata.labels"
+          toFieldPath: "metadata.labels"
+        - fromFieldPath: "metadata.labels"
+          toFieldPath: "spec.forProvider.clusterSelector.matchLabels"
+
+    - base:
+        apiVersion: helm.crossplane.io/v1beta1
+        kind: ProviderConfig
+        metadata:
+          name: provider-config-example # the name is retrieve from patches
+        namespace: crossplane-system
+        spec:
+          credentials:
+            source: Secret
+            secretRef:
+              namespace: crossplane-system
+              name: gke-connection
+              key: kubeconfig
+          identity:
+            secretRef:
+              key: service-account-key
+              name: gcp-service-account
+              namespace: crossplane-system
+            source: Secret
+            type: GoogleApplicationCredentials
+      patches:
+        - fromFieldPath: metadata.name
+          toFieldPath: metadata.name
+      readinessChecks:
+        - type: None
+
+    - base:
+        apiVersion: kubernetes.crossplane.io/v1alpha1
+        kind: ProviderConfig
+        metadata:
+          name: kubernetes-provider # the name is retrieve from patches
+          namespace: crossplane-system
+        spec:
+          credentials:
+            secretRef:
+              key: kubeconfig
+              name: gke-connection
+              namespace: crossplane-system
+            source: Secret
+          identity:
+            secretRef:
+              key: service-account-key
+              name: gcp-service-account
+              namespace: crossplane-system
+            source: Secret
+            type: GoogleApplicationCredentials
+
+      patches:
+        - fromFieldPath: metadata.name
+          toFieldPath: metadata.name
+      readinessChecks:
+        - type: None
+    - base:
+        apiVersion: kubernetes.crossplane.io/v1alpha1
+        kind: Object
+        metadata:
+          name: test-namespace
+        spec:
+          forProvider:
+            manifest:
+              apiVersion: v1
+              kind: Namespace
+              metadata:
+                name: test
+          providerConfigRef:
+            name: mycluster
+
+    - base:
+        apiVersion: helm.crossplane.io/v1beta1
+        kind: Release
+        metadata:
+          name: release-example
+          annotations:
+            crossplane.io/external-name: nginx
+        spec:
+          providerConfigRef:
+            name: default # the name is retrieve from patches
+          managementPolicy: Full
+          forProvider:
+            chart:
+              name: wordpress # the name is retrieve from patches
+              repository: https://charts.bitnami.com/bitnami # the name is retrieve from patches
+              version: 15.2.5 # the name is retrieve from patches
+            wait: true
+            skipCreateNamespace: false # optional
+            values:
+              replicaCount: 2
+              service:
+                type: LoadBalancer
+            namespace: default # the namespace is retrieve from patches
+      patches:
+        - fromFieldPath: metadata.name
+          toFieldPath: spec.providerConfigRef.name
+        - fromFieldPath: spec.applicationChart.name
+          toFieldPath: spec.forProvider.namespace
+        - fromFieldPath: spec.applicationChart.version
+          toFieldPath: spec.forProvider.chart.version
+        - fromFieldPath: spec.applicationChart.name
+          toFieldPath: spec.forProvider.chart.name
+        - fromFieldPath: spec.applicationChart.repository
+          toFieldPath: spec.forProvider.chart.repository
+        - fromFieldPath: spec.applicationChart.skipCreateNamespace
+          toFieldPath: spec.forProvider.skipCreateNamespace

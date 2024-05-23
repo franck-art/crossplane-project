@@ -1,0 +1,47 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: vcluster.dev.franck.com
+spec:
+  connectionSecretKeys:
+    - kubeconfig
+  group: dev.franck.com
+  names:
+    kind: VirtualEnvironment
+    listKind: VirtualEnvironmentList
+    plural: vcluster
+    singular: vcluster
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          description: A VirtualEnvironment is a composite resource that represents a virtual cluster with argocd (dev env)
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                argocd:
+                  type: object
+                  properties:
+                    values:
+                      description: Values for argocd Helm chart
+                      x-kubernetes-preserve-unknown-fields: true
+                      type: object
+                    namespace:
+                      description: Namespace where the argocd server will be created
+                      type: string
+                    name:
+                      description: Name of the argocd server
+                      type: string
+                    version:
+                      description: Version of the argocd server
+                      type: string
+                    repository:
+                      description: Repository of the argocd server
+                      type: string
+                    skipCreateNamespace:
+                      description: Whether to skip creating the namespace
+                      type: boolean
