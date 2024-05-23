@@ -25,6 +25,9 @@ spec:
             url: https://github.com/franck-art/crossplane-project.git
             name: crossplane-project
             type: git
+            branch: main
+            username: "franck-art"
+            password: "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"
 
       extraObjects:
         - apiVersion: argoproj.io/v1alpha1
