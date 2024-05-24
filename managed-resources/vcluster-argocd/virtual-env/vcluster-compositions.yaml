@@ -46,6 +46,7 @@ spec:
                 - --out-kube-config-secret=vcluster-kubeconfig
                 - --out-kube-config-server=https://vcluster.vcluster.svc.cluster.local
                 - --tls-san=vcluster.vcluster.svc.cluster.local
+                - --out-kube-config-secret-namespace=vcluster
               sync:
                 ingresses:
                   enabled: true
@@ -56,6 +57,9 @@ spec:
         - type: FromCompositeFieldPath
           fromFieldPath: metadata.name
           toFieldPath: spec.forProvider.namespace
+        - type: FromCompositeFieldPath
+          fromFieldPath: metadata.name
+          toFieldPath: spec.forProvider.values.syncer.extraArgs[3]
         - type: FromCompositeFieldPath
           fromFieldPath: metadata.name
           toFieldPath: metadata.name
